@@ -1,1 +1,5 @@
 # mandelbrot-calc
+
+```
+cargo run
+```
