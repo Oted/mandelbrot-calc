@@ -12,7 +12,6 @@ rust and node with their dependencies is needed for development.
 
 run server
 ```
-cd src
 cargo run
 ```
 
