@@ -18,6 +18,7 @@ fn handle_read(mut stream: &TcpStream) -> String {
     match stream.read(&mut buf) {
         Ok(_) => {
             let req_str = String::from_utf8_lossy(&buf);
+
             match parse_params(req_str.as_ref()) {
                 Ok(result) => {
                     let mut res_body = String::from("{\"status\":1, \"result\":");
@@ -38,14 +39,16 @@ fn handle_read(mut stream: &TcpStream) -> String {
 }
 
 fn handle_write(mut stream: &TcpStream, res : String) {
-    let mut response = String::from("HTTP/1.1 200 OK\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n");
+    let mut response = String::from("HTTP/1.1 200 OK\r\nContent-Type: application/json; charset=utf-8\r\nAccess-Control-Allow-Origin: http://localhost:3000");
+    response.push_str("\r\n\r\n");
     response.push_str(res.as_ref());
-    response.push_str("\r\n");
 
-    match stream.write(response.as_bytes()) {
+    match stream.write_all(response.as_bytes()) {
         Ok(_) => println!("Response sent"),
         Err(e) => println!("Failed sending response: {}", e),
     }
+
+    stream.flush();
 }
 
 fn handle_client(stream: TcpStream) {
@@ -86,8 +89,8 @@ fn parse_params(body : &str) -> Result<String, String> {
         collect();
 
     //zoom path called
-    if route == "/zoom" {
-        return match handle_zoom(qs_pairs) {
+    if route == "/get_set" {
+        return match get_set_handler(qs_pairs) {
             Ok(res) => return Ok(res),
             Err(e) => return Err(String::from("\"Invalid query params\""))
         }
@@ -105,7 +108,7 @@ fn parse_values(query : &str) -> (&str, &str) {
  *  Custom functions per implemented route,
  *  expected return Result with Ok(parsable Json value as a string)
  */
-fn handle_zoom(qs_pairs : Vec<(&str, &str)>) -> Result<String,String> {
+fn get_set_handler(qs_pairs : Vec<(&str, &str)>) -> Result<String,String> {
     let mut x_min = None;
     let mut x_max = None;
     let mut y_min = None;
