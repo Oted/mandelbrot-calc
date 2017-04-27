@@ -37,7 +37,7 @@ class App extends Component {
     super();
 
     this.height = 800;
-    this.width = 1000;
+    this.width = 1200;
 
     this.state = {
       'progress' : 0,
@@ -64,7 +64,6 @@ class App extends Component {
     this.yNegRatio = Math.abs(this.props.y_max <= 0 ? 1 : this.props.y_min >= 0 ? 0 : this.props.y_min / this.yDelt);
     this.yNegSection = Math.abs(this.yNegRatio * this.height);
     this.yNegDeltSection = this.yDelt * this.yNegRatio;
-
     this.yPosRatio = 1 - this.yNegRatio;
     this.yPosSection = Math.abs(this.yPosRatio * this.height);
     this.yPosDeltSection = this.yDelt * this.yPosRatio;
@@ -75,6 +74,7 @@ class App extends Component {
   componentDidMount() {
     this.props.dispatch({
       type : "get_set",
+      split_section  : this.state.zoom + ".1-1",
       scope: {
         x_min: this.props.x_min,
         x_max: this.props.x_max,
@@ -85,33 +85,27 @@ class App extends Component {
       }
     });
 
-    this._setScopeValues();
+    this.setState({
+      "loading" : true
+    })
   }
 
-  // _webworker() {
-    // Mandelbrot.postMessage([this.props.x_min, this.props.x_max, this.props.y_min, this.props.y_max, this.nMax, this.stepps]);
-
-    // Mandelbrot.onmessage = (e) => {
-      // if (Array.isArray(e.data) && e.data.length === 2) {
-        // let type = e.data[0];
-        // let data = e.data[1];
-        // switch (type) {
-          // case "draw" :
-            // return this._draw.call(this, data);
-          // case "progress" :
-            // let loading = data > 0.98 ? false : true;
-            // return this.setState({'progress' : data, loading});
-        // }
-      // } else {
-        // console.log('invalid message from worker', e.data);
-      // }
-    // }
-  // }
+  componentDidUpdate(prevProps) {
+    if (Object.keys(prevProps.points).length !== Object.keys(this.props.points).length) {
+      this._setScopeValues();
+      this._draw(this.props.points[this.state.zoom + ".1-1"]);
+    }
+  }
 
   render() {
     return (
       <div className="App">
-        <div style={{width:this.state.progress * 100 + '%'}} className='progress'> <span> {this.state.loading ? 'Loading...' : 'Done!'}</span> </div>
+        <div className='progress'>
+          {this.state.loading ?
+            <span className="loading">Loading<span>.</span><span>.</span><span>.</span></span> :
+            <span>Done!</span>
+          }
+        </div>
         <canvas
           id="canvas"
           width={this.width}
@@ -164,13 +158,36 @@ class App extends Component {
     this.ctx.lineTo(this._translateX(xMin),this._translateY(yMax));
     this.ctx.stroke();
 
-    this._setScopeValues(xMin, xMax, yMin, yMax);
+    setTimeout(() => {
+      this._setScopeValues(xMin, xMax, yMin, yMax);
 
-    // Mandelbrot.postMessage([this.props.x_min, this.props.x_max, this.props.y_min, this.props.y_max, this.nMax, this.stepps]);
-    this.setState({'zoom' : this.state.zoom + 1});
+      this.props.dispatch({
+        type : "get_set",
+        split_section  : (this.state.zoom + 1) + ".1-1",
+        scope: {
+          x_min: xMin,
+          x_max: xMax,
+          y_min: yMin,
+          y_max: yMax,
+          n_max: this.props.n_max + 50,
+          stepps: this.props.stepps
+        }
+      });
+
+      this.setState({
+        'zoom' : this.state.zoom + 1,
+        loading : true
+      });
+    }, 50);
   }
 
-  _draw(arr, progress) {
+  _draw(arr) {
+    setTimeout(() => {
+      this.setState({
+        "loading" : false
+      });
+    }, 100);
+
     const oldC = this.ctx;
     window.requestAnimationFrame(() => {
       this.canvas = this.canvas || document.getElementById('canvas');
@@ -183,34 +200,24 @@ class App extends Component {
         }
 
         let iter = 0;
-        arr.forEach((item) => {
-          if (progress) {
-             iter % 3 === 0 ? progress(iter++ / arr.length) : void 0;
-          } else {
-            this.cache.push(item);
-          }
-
-          this._drawPoint(item);
-        });
+        for (let i = 0; i < arr.length; i+=3) {
+          this._drawPoint(arr[i], arr[i+1], arr[i+2]);
+        }
       }
     });
   }
 
-  _drawPoint(item) {
-    let x = item[0];
-    let y = item[1];
-    let n = item[2];
-
+  _drawPoint(x, y, n) {
     let r = 0;
     let g = 0;
     let b = 0;
 
-    let c =  1 - n / this.nMax;
+    let c =  n / this.props.n_max;
 
     if (c < 1) {
-      r = Math.floor(255 * Math.sin(c));
-      g = Math.floor(255 * Math.sin(c**2));
-      b = Math.floor(255 * c);
+      r = Math.floor(255 * Math.sin(c**-3.22));
+      g = Math.floor(255 * Math.sin(c**-1.61));
+      b = Math.floor(255 * Math.sin(c**-0.85));
     }
 
     this.ctx.fillStyle = "rgba("+r+","+g+","+b+",1)";
@@ -250,14 +257,14 @@ class App extends Component {
     if (y >= 0) {
       //if were only on the positive plane
       if (this.yPosRatio === 1) {
-        newY = this.yPosSection * ((y - this.props.y_min) / this.yDelt);
+        newY = this.yPosSection - this.yPosSection * ((y - this.props.y_min) / this.yDelt);
       } else {
         newY = this.yPosSection - this.yPosSection * (y / this.yPosDeltSection);
       }
     } else {
       //if were only on the neg plane
       if (this.yNegRatio === 1) {
-        newY = this.yNegSection * ((y - this.props.y_min) / this.yDelt);
+        newY = this.yNegSection - this.yNegSection * ((y - this.props.y_min) / this.yDelt);
       } else {
         newY = this.yPosSection + this.yNegSection * (y / this.yNegDeltSection) * -1;
       }
