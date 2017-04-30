@@ -38,11 +38,30 @@ class App extends Component {
 
     this.height = 800;
     this.width = 1200;
+    this.current_points = [];
+    this.current_boxes = [];
+
+    const startColors = [
+      [0.9323656359627446, 0.7942651204375739, 3.809844101500997],
+      [0.80901699437,1.61803398875, 2.42705098313],
+      [1,1,1],
+      [6.624459115312229, -6.976354113876891, -2.0703643976739547],
+      [2.365688220101208, 0.9446999052794773, 3.9472993144931214],
+      [6.795545985897607, -6.719446348473062, 2.767286146730843],
+      [0.20815586834839928, 2.559426916543999, 6.140759597370099]
+    ];
+
+    const targetCol = startColors[Math.floor(Math.random() * startColors.length)];
 
     this.state = {
       'progress' : 0,
       'loading' : false,
-      'zoom' : 1
+      'zoom' : 1,
+      'colors' : {
+        'r' : targetCol[0],
+        'g' : targetCol[1],
+        'b' : targetCol[2]
+      }
     }
   }
 
@@ -71,10 +90,32 @@ class App extends Component {
     console.log('App', this);
   }
 
+  _refreshColors() {
+    const colOrder3 = Math.random();
+    const colOrder2 = Math.random();
+    let col = {
+      'r' : colOrder3 <= 0.333 ? Math.random() + 6 : colOrder2 <= 0.333 ? Math.random() + 2 : Math.random(),
+      'g' : colOrder3 < 0.333 && colOrder3 <= 0.666 ? Math.random() + 6 : colOrder2 > 0.333 && colOrder2 <= 0.666 ? Math.random() + 2 : Math.random(),
+      'b' : colOrder3 > 0.666 ? Math.random() + 6 : colOrder2 > 0.3 ? Math.random() + 2 : Math.random()
+    };
+
+    col.r = Math.random() > 0.5 ? col.r*-1 : col.r;
+    col.g = Math.random() > 0.5 ? col.g*-1 : col.g;
+    col.b = Math.random() > 0.5 ? col.b*-1 : col.b;
+
+    this.setState({
+      'colors' : col,
+      'loading' : true
+    });
+
+    setTimeout(() => {
+      this._draw(this.current_points);
+    }, 100);
+  }
+
   componentDidMount() {
     this.props.dispatch({
       type : "get_set",
-      split_section  : this.state.zoom + ".1-1",
       scope: {
         x_min: this.props.x_min,
         x_max: this.props.x_max,
@@ -90,21 +131,33 @@ class App extends Component {
     })
   }
 
+  _reset() {
+    this.current_points = [];
+    this.current_boxes = [];
+  }
+
   componentDidUpdate(prevProps) {
-    if (Object.keys(prevProps.points).length !== Object.keys(this.props.points).length) {
+    //only draw if theres new points
+    if (prevProps.latest_points[0] !== this.props.latest_points[0] ||
+        prevProps.latest_points[1] !== this.props.latest_points[1]) {
       this._setScopeValues();
-      this._draw(this.props.points[this.state.zoom + ".1-1"]);
+      this._draw(this.props.latest_points);
+      this.current_points = [...this.current_points, ...this.props.latest_points];
+      this.current_boxes.push(this.props.latest_box);
     }
   }
 
   render() {
     return (
       <div className="App">
-        <div className='progress'>
+        <div className='nav'>
           {this.state.loading ?
             <span className="loading">Loading<span>.</span><span>.</span><span>.</span></span> :
-            <span>Done!</span>
+            this.state.zoom === 1 ?
+              <span> Zoom where you want to explore </span> :
+              <span> Done! </span>
           }
+          {!this.state.loading ? <span onClick={(e) =>{ this._refreshColors() }} className='refresh-colors'> shuffle colors </span> : null}
         </div>
         <canvas
           id="canvas"
@@ -138,6 +191,9 @@ class App extends Component {
     let yMax = yCoord + (this.yDelt / this.scale);
 
     this.ctx.fillStyle = "rgba("+255+","+0+","+0+",1)";
+
+    this.ctx.lineWidth = 2;
+    this.ctx.strokeStyle = '#ff0000';
     this.ctx.beginPath();
     this.ctx.moveTo(this._translateX(xMin),this._translateY(yMax));
     this.ctx.lineTo(this._translateX(xMax),this._translateY(yMax));
@@ -159,7 +215,7 @@ class App extends Component {
     this.ctx.stroke();
 
     setTimeout(() => {
-      this._setScopeValues(xMin, xMax, yMin, yMax);
+      this._reset();
 
       this.props.dispatch({
         type : "get_set",
@@ -169,39 +225,40 @@ class App extends Component {
           x_max: xMax,
           y_min: yMin,
           y_max: yMax,
-          n_max: this.props.n_max + 50,
+          n_max: this.props.n_max + 25 + Math.floor(this.state.zoom * this.state.zoom * 1.5),
           stepps: this.props.stepps
         }
       });
 
       this.setState({
-        'zoom' : this.state.zoom + 1,
+        zoom : this.state.zoom + 1,
         loading : true
       });
     }, 50);
   }
 
   _draw(arr) {
-    setTimeout(() => {
-      this.setState({
-        "loading" : false
-      });
-    }, 100);
-
     const oldC = this.ctx;
     window.requestAnimationFrame(() => {
       this.canvas = this.canvas || document.getElementById('canvas');
 
       if (this.canvas) {
         this.ctx = this.ctx || this.canvas.getContext('2d');
+        this.ctx.clearRect(
+          this._translateX(arr[0]),
+          this._translateY(arr[1]) - this.height / this.props.split,
+          this.width / this.props.split,
+          this.height / this.props.split
+        );
 
-        if (!oldC) {
-          this.imageD = this.ctx.createImageData(1,1);
-        }
-
-        let iter = 0;
         for (let i = 0; i < arr.length; i+=3) {
           this._drawPoint(arr[i], arr[i+1], arr[i+2]);
+        }
+
+        if (this.current_boxes.length === this.props.split**2) {
+          this.setState({
+            loading : false
+          });
         }
       }
     });
@@ -215,9 +272,9 @@ class App extends Component {
     let c =  n / this.props.n_max;
 
     if (c < 1) {
-      r = Math.floor(255 * Math.sin(c**-3.22));
-      g = Math.floor(255 * Math.sin(c**-1.61));
-      b = Math.floor(255 * Math.sin(c**-0.85));
+      r = Math.floor(255 * Math.sin(c**-this.state.colors.r));
+      g = Math.floor(255 * Math.sin(c**-this.state.colors.g));
+      b = Math.floor(255 * Math.sin(c**-this.state.colors.b));
     }
 
     this.ctx.fillStyle = "rgba("+r+","+g+","+b+",1)";
@@ -248,7 +305,7 @@ class App extends Component {
       }
     }
 
-    return parseInt(newX);
+    return newX;
   }
 
   _translateY(y) {
@@ -270,7 +327,7 @@ class App extends Component {
       }
     }
 
-    return parseInt(newY);
+    return newY;
   }
 }
 

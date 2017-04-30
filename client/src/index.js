@@ -4,47 +4,49 @@ import App from './App';
 import {Observable} from 'rxjs';
 import {handleAction, dispatch} from './utils/actions';
 import * as Api from './utils/api';
+import * as Split from './utils/split';
 
 const initialState = {
   x_min : -2.0,
   x_max : 1,
   y_min : -1.5,
   y_max : 1.5,
-  // x_min : -1.2481945087999997,
-  // x_max : -1.2481868287999998,
-  // y_min : 0.06312480000000005,
-  // y_max : 0.06313248000000006,
-  n_max : 70,
+  n_max : 50,
   stepps : 1200,
-  split_x : 1,
-  split_y : 1,
-  points : {}
+  points : {},
+  latest_box : {},
+  latest_points: [],
+  split : 4
 };
 
 const stateUpdate$ = Observable.merge(
   handleAction('get_set')
   .switchMap(act => {
-    const actO = Observable.of(act);
-    const apiO  = Api.getSet(act.scope.x_min, act.scope.x_max, act.scope.y_min, act.scope.y_max, act.scope.n_max, act.scope.stepps);
-    return Observable.zip(actO, apiO, (a,b) => {return {act: a, res: b}});
+    return Observable.concat(...
+      Split.getSets(initialState.split, act.scope.x_min, act.scope.x_max, act.scope.y_min, act.scope.y_max, act.scope.n_max, act.scope.stepps)
+    );
   })
   .map(data => state => {
     let nested = {};
-    nested[data.act.split_section] = data.res.body.result;
+
+    nested[data.box.split_section] = {
+      points : data.res.body.result,
+      box : data.box
+    };
+
+    console.log(data.box);
+
     return {
       ...state,
-      points : Object.assign({}, state.points, nested),
-      x_min : data.act.scope.x_min,
-      x_max : data.act.scope.x_max,
-      y_min : data.act.scope.y_min,
-      y_max : data.act.scope.y_max,
-      n_max : data.act.scope.n_max,
-      stepps : data.act.scope.stepps
+      // points : Object.assign({}, nested, state.points),
+      latest_points : data.res.body.result,
+      latest_box : data.box,
+      x_min : data.scope[1],
+      x_max : data.scope[2],
+      y_min : data.scope[3],
+      y_max : data.scope[4],
+      n_max : data.scope[5]
     }
-  }),
-  handleAction('set_set')
-  .switchMap(act => {
-
   })
 );
 
