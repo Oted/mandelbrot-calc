@@ -42,6 +42,7 @@ fn handle_write(mut stream: &TcpStream, res : String) {
     let mut response = String::from("HTTP/1.1 200 OK\r\nContent-Type: application/json; charset=utf-8\r\nAccess-Control-Allow-Origin: http://localhost:3000");
     response.push_str("\r\n\r\n");
     response.push_str(res.as_ref());
+    response.push_str("\r\n\r\n");
 
     match stream.write_all(response.as_bytes()) {
         Ok(_) => println!("Response sent"),

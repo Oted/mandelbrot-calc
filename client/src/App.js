@@ -33,22 +33,16 @@ import './App.css';
 **/
 
 class App extends Component {
-  constructor() {
+  constructor(props) {
     super();
 
-    this.height = 800;
-    this.width = 1200;
+    this.height = props.height;
+    this.width= props.width;
     this.current_points = [];
     this.current_boxes = [];
 
     const startColors = [
-      [0.9323656359627446, 0.7942651204375739, 3.809844101500997],
-      [0.80901699437,1.61803398875, 2.42705098313],
       [1,1,1],
-      [6.624459115312229, -6.976354113876891, -2.0703643976739547],
-      [2.365688220101208, 0.9446999052794773, 3.9472993144931214],
-      [6.795545985897607, -6.719446348473062, 2.767286146730843],
-      [0.20815586834839928, 2.559426916543999, 6.140759597370099]
     ];
 
     const targetCol = startColors[Math.floor(Math.random() * startColors.length)];
@@ -91,6 +85,7 @@ class App extends Component {
   }
 
   _refreshColors() {
+    /*
     const colOrder3 = Math.random();
     const colOrder2 = Math.random();
     let col = {
@@ -103,14 +98,26 @@ class App extends Component {
     col.g = Math.random() > 0.5 ? col.g*-1 : col.g;
     col.b = Math.random() > 0.5 ? col.b*-1 : col.b;
 
+    col.r = Math.random();
+    col.g = Math.random();
+    col.b = Math.random();
+    */
     this.setState({
-      'colors' : col,
+      'colors' : {
+        'r' : Math.random(),
+        'g' : Math.random(),
+        'b' : Math.random()
+      },
       'loading' : true
     });
 
-    setTimeout(() => {
-      this._draw(this.current_points);
-    }, 100);
+    this._draw(this.current_points, () => {
+      if (this.current_boxes.length === this.props.split**2) {
+        this.setState({
+          loading : false
+        });
+      }
+    });
   }
 
   componentDidMount() {
@@ -141,9 +148,11 @@ class App extends Component {
     if (prevProps.latest_points[0] !== this.props.latest_points[0] ||
         prevProps.latest_points[1] !== this.props.latest_points[1]) {
       this._setScopeValues();
-      this._draw(this.props.latest_points);
-      this.current_points = [...this.current_points, ...this.props.latest_points];
-      this.current_boxes.push(this.props.latest_box);
+
+      this._draw(this.props.latest_points, () => {
+        this.current_points = [...this.current_points, ...this.props.latest_points];
+        this.current_boxes.push(this.props.latest_box);
+      });
     }
   }
 
@@ -237,7 +246,7 @@ class App extends Component {
     }, 50);
   }
 
-  _draw(arr) {
+  _draw(arr, cb) {
     const oldC = this.ctx;
     window.requestAnimationFrame(() => {
       this.canvas = this.canvas || document.getElementById('canvas');
@@ -251,15 +260,22 @@ class App extends Component {
           this.height / this.props.split
         );
 
+        //this.ctx.imageSmoothingEnabled = true;
+        //this.ctx.imageSmoothingQuality = "high";
+
         for (let i = 0; i < arr.length; i+=3) {
           this._drawPoint(arr[i], arr[i+1], arr[i+2]);
         }
+      }
 
-        if (this.current_boxes.length === this.props.split**2) {
-          this.setState({
-            loading : false
-          });
-        }
+      if (cb) {
+        cb()
+      }
+
+      if (this.current_boxes.length === this.props.split**2) {
+        this.setState({
+          loading : false
+        });
       }
     });
   }
@@ -272,10 +288,11 @@ class App extends Component {
     let c =  n / this.props.n_max;
 
     if (c < 1) {
-      r = Math.floor(255 * Math.sin(c**-this.state.colors.r));
-      g = Math.floor(255 * Math.sin(c**-this.state.colors.g));
-      b = Math.floor(255 * Math.sin(c**-this.state.colors.b));
+      r = Math.floor(255 * c * Math.cos(c * this.state.colors.r));
+      g = Math.floor(255 * c * Math.cos(c * this.state.colors.g));
+      b = Math.floor(255 * c * Math.cos(c * this.state.colors.b));
     }
+
 
     this.ctx.fillStyle = "rgba("+r+","+g+","+b+",1)";
     this.ctx.fillRect(

@@ -12,11 +12,13 @@ const initialState = {
   y_min : -1.5,
   y_max : 1.5,
   n_max : 50,
-  stepps : 1200,
+  stepps : window.innerHeight > 1000 ? 1000 : window.innerHeight,
   points : {},
   latest_box : {},
   latest_points: [],
-  split : 4
+  split : 6,
+  width : window.innerHeight > 1000 ? 1000 : window.innerHeight,
+  height: window.innerHeight > 1000 ? 1000 : window.innerHeight
 };
 
 const stateUpdate$ = Observable.merge(
